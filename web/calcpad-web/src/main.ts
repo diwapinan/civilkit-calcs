@@ -58,6 +58,7 @@ import { attachOperatorReplacer } from './editor/operator-replacer';
 import { attachAutoIndenter } from './editor/auto-indent';
 import { attachToFormula } from './editor/to-formula-monaco';
 import { attachPicturePaste, insertPicture, readPicture } from './editor/paste-dim';
+import { dimFence, drawEdit, pickEdit } from './editor/dim-edit';
 import { registerFormattingCommands, getParseMode } from './editor/formatting-commands';
 import { looksLikeLine, sheetInsert } from './wasm/sheet-insert';
 import { insertEdit, type InsertBlock } from './wasm/sheet-blocks';
@@ -2013,6 +2014,40 @@ async function bootstrap(): Promise<void> {
             for (let n = line + 1; n <= model.getLineCount(); n++) { end = n; if (closer(model.getLineContent(n))) break; }
             ed.setSelection({ startLineNumber: line, startColumn: 1, endLineNumber: end, endColumn: model.getLineMaxColumn(end) });
             ed.revealLinesInCenterIfOutsideViewport(line, end);
+            ed.focus();
+            return true;
+        },
+        dimDraw: (groupId: string, fence: number, kind: string, x1: number, y1: number, x2: number, y2: number) => {
+            const ed = groups.get(groupId)?.editor;
+            const model = ed?.getModel();
+            const f = model ? dimFence(model.getLinesContent(), fence) : null;
+            if (!ed || !model || !f || !['dim', 'hdim', 'vdim'].includes(kind)) return false;
+            const e = drawEdit(model.getLinesContent(), f, kind, x1, y1, x2, y2);
+            const count = model.getLineCount();
+            // Before the closing line; at the end of the document when the fence is never closed.
+            const range = e.line <= count
+                ? { startLineNumber: e.line, startColumn: 1, endLineNumber: e.line, endColumn: 1 }
+                : { startLineNumber: count, startColumn: model.getLineMaxColumn(count), endLineNumber: count, endColumn: model.getLineMaxColumn(count) };
+            ed.pushUndoStop();
+            ed.executeEdits('dim-draw', [{ range, text: e.line <= count ? e.text + '\n' : '\n' + e.text, forceMoveMarkers: true }]);
+            ed.pushUndoStop();
+            ed.setPosition({ lineNumber: e.line, column: e.caret });
+            ed.revealLineInCenterIfOutsideViewport(e.line);
+            ed.focus();
+            return true;
+        },
+        dimPick: (groupId: string, fence: number, x: number, y: number) => {
+            const ed = groups.get(groupId)?.editor;
+            const model = ed?.getModel();
+            const pos = ed?.getPosition();
+            const f = model ? dimFence(model.getLinesContent(), fence) : null;
+            if (!ed || !model || !pos || !f || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+            const sel = ed.getSelection();
+            if (sel && !sel.isEmpty()) return false;
+            const e = pickEdit(model.getLinesContent(), f, pos.lineNumber, pos.column, x, y);
+            if (!e) return false;
+            ed.executeEdits('dim-pick', [{ range: { startLineNumber: e.line, startColumn: e.column, endLineNumber: e.line, endColumn: e.column }, text: e.text, forceMoveMarkers: true }]);
+            ed.setPosition({ lineNumber: e.line, column: e.column + e.text.length });
             ed.focus();
             return true;
         },

@@ -1191,6 +1191,10 @@ const onLineEditRequest = ref<{
   undo?: (groupId: string) => void
   /** Drag and drop: moves the block at `line` (with the blocks up to start line `last`) before the block at `before` (0: the end). */
   moveBlock?: (groupId: string, starts: number[], line: number, before: number, last: number) => boolean
+  /** A drag on a dimension figure: adds a `kind` line from (x1,y1) to (x2,y2) to the ```dim fence that opens on `fence`. */
+  dimDraw?: (groupId: string, fence: number, kind: string, x1: number, y1: number, x2: number, y2: number) => boolean
+  /** A click on a dimension figure: puts the point at the editor's cursor when that is inside the fence; false otherwise. */
+  dimPick?: (groupId: string, fence: number, x: number, y: number) => boolean
 } | null>(null)
 
 // Rich-text editing of a Markdown block; Milkdown is fetched when the first block is edited.
@@ -1203,6 +1207,7 @@ import { withPageBreakMarks } from './wasm/page-break'
 import { withPageView, type PageViewSettings } from './wasm/page-view'
 import { pasteSource, peekClipboard, rememberedBlock } from './wasm/block-clipboard'
 import { PLOT_CHIPS_SCRIPT, plotChipHost } from './wasm/plot-chips'
+import { DIM_PICK_SCRIPT } from './wasm/dim-pick'
 import { handlePanelEvent, handlePanelSheet } from './wasm/python-panels'
 import { recordFigureImage } from './wasm/python-plotly'
 const MdBlockEditor = defineAsyncComponent(() => import('./editor/MdBlockEditor.vue'))
@@ -1983,6 +1988,19 @@ function onPreviewWindowMessage(e: MessageEvent): void {
     // The click that applied a change must not open another editor on the old line numbers.
     if (Date.now() - lastCommitAt < 350) return
     void openLineEdit(groupId, frameId, data)
+    return
+  }
+  if (data.type === 'dimDraw') {
+    const n = (k: string) => Number(data[k])
+    if (['fence', 'x1', 'y1', 'x2', 'y2'].every(k => Number.isFinite(n(k))) && typeof data.kind === 'string'
+      && onLineEditRequest.value?.dimDraw?.(groupId, n('fence'), data.kind, n('x1'), n('y1'), n('x2'), n('y2'))) {
+      if (narrow.value) mobilePane.value = 'edit'
+    }
+    return
+  }
+  if (data.type === 'dimPick') {
+    // Outside the fence, a click on the figure does what it did before: it selects the fence.
+    if (!onLineEditRequest.value?.dimPick?.(groupId, Number(data.fence), Number(data.x), Number(data.y))) void openLineEdit(groupId, frameId, data)
     return
   }
   if (data.type === 'insertAt') {
@@ -2864,6 +2882,8 @@ function injectLineLinks(
     ] : []),
     // Chips under each plot: log x / y, 1:1, copy data, save PNG / SVG (see plot-chips.ts).
     ...(lineLinks ? [PLOT_CHIPS_SCRIPT] : []),
+    // Points on a dimension figure: drag to add a dimension, click to put x,y at the cursor (see dim-pick.ts).
+    ...(lineLinks && insertStrip ? [DIM_PICK_SCRIPT] : []),
     ...(lineLinks ? [
     "  function hideAllLineLinks() {",
     "    document.querySelectorAll('.lineLink').forEach(function(l) { l.style.display = 'none'; });",

@@ -129,6 +129,13 @@ commented starter lines (`// hdim`, `// vdim`, `// text`) in the picture's own p
 line and edit its points and label. In a Calcpad worksheet a pasted picture is an image line. A clipboard that
 also holds text (a spreadsheet range) pastes the text.
 
+**Pick points on the figure** in the preview, with a mouse. Over a figure the pointer shows its position in the
+picture's pixels. **Drag** along what you want to measure and the editor adds a dimension line to the fence:
+`hdim` or `vdim` when the drag is within 8 degrees of horizontal or vertical (and straightened), `dim` otherwise,
+with the cursor after its `| ` for the label. **Click** with the editor's cursor on a line inside the fence and the
+point goes in at the cursor (`dim ` then two clicks gives `dim 120,330 740,330 `); with the cursor elsewhere a click
+selects the fence, as before. Each drag or click is one undo step.
+
 The compiler writes the figure as Calcpad text lines holding HTML: the picture, an SVG layer in the
 picture's pixel coordinates, and the labels as HTML over it, with `#val ... #end val` and
 `#equ ... #end equ` around the values, so the output mode around the fence is kept. The report needs no
