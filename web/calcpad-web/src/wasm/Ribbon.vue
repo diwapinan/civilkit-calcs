@@ -66,7 +66,7 @@ import { ACCENT, ICONS_BIG, ICONS_SMALL } from './ribbon-icons';
 import './ribbon-icons.css';
 import { insertLibrarySnippet, loadSnippets, sectionsFor } from './ribbon-snippets';
 import type { Snip } from './ribbon-snippets';
-import { insertDiagram, insertSnippet, isActive, isSheetEditor, runAction } from './ribbon-actions';
+import { insertDiagram, insertDimLine, insertSnippet, isActive, isSheetEditor, runAction } from './ribbon-actions';
 import { sheetInsert } from './sheet-insert';
 import { td } from '../i18n';
 import { btnKey, groupKey, sectionKey, tabKey } from './ribbon-i18n';
@@ -200,7 +200,8 @@ function fire(b: RibbonButton, ev: MouseEvent): void {
 }
 
 function pick(e: Entry): void {
-  if (e.diagram !== undefined) insertDiagram(props.ctx.editor(), e.diagram);
+  if (e.dim) void insertDimLine(props.ctx.editor(), e.text);
+  else if (e.diagram !== undefined) insertDiagram(props.ctx.editor(), e.diagram);
   else if (e.snipKey) insertLibrarySnippet(props.ctx.editor(), e.text, !!e.line, snipByKey.get(e.snipKey));
   else insertSnippet(props.ctx.editor(), e.text, !!e.line, e.sheet);
   closePop(false);

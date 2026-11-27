@@ -74,6 +74,17 @@ await page.evaluate(() => { const ed = window.calcpadActiveEditor; ed.setValue(e
 await page.waitForTimeout(500);
 const shown2 = await page.evaluate(() => (document.querySelector('.monaco-editor .view-lines')?.textContent ?? '').replace(/\u00a0/g, ' '));
 check(shown2.includes('[img2]: data:') && !shown2.includes('[img1]: data:'), 'an unused picture\'s data shows; a used one stays hidden');
+// The Dimension style menu puts a style after the picture line of the fence, and a line after the cursor's line.
+await page.evaluate(() => { const ed = window.calcpadActiveEditor; const ls = ed.getModel().getLinesContent(); ed.setPosition({ lineNumber: ls.indexOf('```dim') + 1 + 4, column: 1 }); });
+await page.click('[data-ribbon-btn="pl-dimstyle"]');
+await page.click('[data-ribbon-glyph="Architectural"]');
+await page.click('[data-ribbon-btn="pl-dimstyle"]');
+await page.click('[data-ribbon-glyph="Horizontal"]');
+await page.waitForTimeout(300);
+const st = (await page.evaluate(() => window.calcpadActiveEditor.getValue())).split('\n');
+const o = st.indexOf('```dim');
+check(st[o + 2] === 'style arrow tick color #37474f weight 2 text above box off', `a style goes after the picture line (${st[o + 2]})`);
+check(st.some((l, i) => i > o && l === 'hdim 100,400 700,400 offset -40 | {L}' && st.indexOf('```', o + 1) > i), 'a line goes into the fence');
 await page.click('[data-ribbon-tab="math"]');
 check(await page.locator('[data-ribbon-btn="r-dimfig"]').count() === 1, 'the Math tab has the button too');
 

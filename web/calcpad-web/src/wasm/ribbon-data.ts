@@ -34,6 +34,8 @@ export interface Entry {
     sheet?: string;
     /** A starter diagram (its Mermaid source): inserted as a block of its own, see insertDiagram in ribbon-actions.ts. */
     diagram?: string;
+    /** A line of a ```dim fence: inserted into the fence at or near the cursor, see insertDimLine in ribbon-actions.ts. */
+    dim?: boolean;
 }
 export interface Section { heading: string; items: Entry[] }
 export interface RibbonButton {
@@ -141,6 +143,30 @@ const PAL_DIAGRAMS: Section[] = DIAGRAM_STARTERS.map(s => ({
     heading: s.heading,
     items: s.items.map((d): Entry => ({ label: d.label, title: d.title, text: cpdFence(d.source) + '\n', sheet: sheetFence(d.source) + '\n', line: true, diagram: d.source })),
 }));
+
+/** The Dimension style menu: lines for a ```dim fence (calcpad-sheet/src/dim.rs), put into the fence near the cursor. */
+const dimEntry = (label: string, text: string, title: string): Entry =>
+    ({ label, title, text: text + '\n', sheet: text + '\n', line: true, dim: true, skip: 'a line of a dim fence, not a worksheet line' });
+const PAL_DIMSTYLE: Section[] = [
+    { heading: 'Style of the figure', items: [
+        dimEntry('Architectural', 'style arrow tick color #37474f weight 2 text above box off', 'Oblique ticks, dark grey, the text above the line'),
+        dimEntry('Engineering', 'style arrow arrow color #d32f2f text center box on', 'Filled arrowheads, red, the text on the line over a white box'),
+        dimEntry('Drawing (black)', 'style arrow tick color black weight 2 text above box off decimals 0', 'Black oblique ticks, whole numbers above the line, as on a CAD drawing'),
+        dimEntry('Open arrows', 'style arrow open color #2e7d32 text above', 'Open arrowheads, green, the text above the line'),
+        dimEntry('Dots', 'style arrow dot color #1565c0 text above', 'Dots at the ends, blue, the text above the line'),
+    ] },
+    { heading: 'Named styles', items: [
+        dimEntry('main', 'style main arrow tick color #37474f weight 2 text above box off', 'A style named main: a line takes it with "style main" after its points'),
+        dimEntry('note', 'style note arrow dot color #1565c0 decimals 1', 'A style named note: a line takes it with "style note" after its points'),
+    ] },
+    { heading: 'Lines', items: [
+        dimEntry('Horizontal', 'hdim 100,400 700,400 offset -40 | {L}', 'A horizontal dimension: two points, an offset and a label (edit the points and the name)'),
+        dimEntry('Vertical', 'vdim 700,100 700,400 offset -40 | {h -> mm}', 'A vertical dimension'),
+        dimEntry('Aligned', 'dim 100,400 600,100 offset 30 | {L}', 'A dimension along the line between two points'),
+        dimEntry('Text', 'text 400,200 | w = {w -> kN/m}', 'A label at a point'),
+        dimEntry('Line', 'line 100,100 300,100 300,300', 'A line through points'),
+    ] },
+];
 
 const greekLower = 'αβγδεζηθικλμνξοπρστυφχψω'.split('');
 const greekUpper = 'ΓΔΘΛΞΠΣΦΨΩ'.split('');
@@ -357,6 +383,7 @@ export const RIBBON: RibbonTab[] = [
                 big('r-heading', 'Heading', 'heading', 'Insert a heading: "Heading in a worksheet, ## Heading in a sheet', { text: '"Heading\n', line: true, sheet: '## Heading\n' }),
                 big('r-image', 'Image', 'image', 'Insert a picture from a file: <img src="./image.png"> in a worksheet, ![Image](./image.png) in a sheet', { text: IMAGE_WS, line: true, sheet: IMAGE_SHEET }),
                 action('r-dimfig', 'Dimension figure', 'dimfig', "Insert a picture with dimension lines whose labels come from the sheet's quantities: a ```dim fence (in a worksheet, an image line)", 'dimfigure'),
+                pal('r-dimstyle', 'Dimension style', 'dimstyle', 'Styles and lines for a dimension figure: put into the dim block at or near the cursor', PAL_DIMSTYLE),
                 big('r-plot', 'Plot', 'plot', 'Insert a function plot: $Plot{sin(x) @ x = 0 : 2*π}', { text: '$Plot{sin(x) @ x = 0 : 2*π}\n', line: true, nox: true, sheet: 'plot sin(x) for x in 0..2*π\n' }),
                 big('r-table', 'Table', 'table', 'Insert a table: HTML in a worksheet, Markdown pipes in a sheet', { text: TABLE_WS, line: true, sheet: TABLE_SHEET }),
             ] },
@@ -493,6 +520,7 @@ export const RIBBON: RibbonTab[] = [
                 pal('dg-diagrams', 'Diagrams', 'diagram', 'Insert a starter diagram: flowchart, sequence, Gantt, pie, Sankey and more, drawn from text', PAL_DIAGRAMS),
                 big('pl-image', 'Image', 'image', 'Insert a picture from a file: <img src="./image.png"> in a worksheet, ![Image](./image.png) in a sheet', { text: IMAGE_WS, line: true, sheet: IMAGE_SHEET }),
                 action('pl-dimfig', 'Dimension figure', 'dimfig', "Insert a picture with dimension lines whose labels come from the sheet's quantities: a ```dim fence (in a worksheet, an image line)", 'dimfigure'),
+                pal('pl-dimstyle', 'Dimension style', 'dimstyle', 'Styles and lines for a dimension figure: put into the dim block at or near the cursor', PAL_DIMSTYLE),
             ] },
         ],
     },

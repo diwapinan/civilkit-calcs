@@ -1,6 +1,6 @@
 // Unit checks for src/editor/dim-edit.ts, the editor side of picking on a dimension figure (node --experimental-strip-types).
 import assert from 'node:assert/strict';
-import { dimFence, dragKind, drawEdit, pickEdit } from '../calcpad-web/src/editor/dim-edit.ts';
+import { dimFence, dimInsertLine, dragKind, drawEdit, fenceNear, pickEdit } from '../calcpad-web/src/editor/dim-edit.ts';
 
 const doc = ['<!--sheet-->', 'L: 6 m', '```dim', 'image a.png 800x400', '  hdim 1,2 3,2 | x', '```', 'M: 1'];
 const f = dimFence(doc, 3);
@@ -24,4 +24,14 @@ assert.deepEqual(pickEdit(['```dim', 'dim  | {L}', '```'], { open: 1, close: 3 }
 assert.equal(pickEdit(doc, f, 2, 1, 7, 8), null, 'before the fence');
 assert.equal(pickEdit(doc, f, 3, 1, 7, 8), null, 'on the opening line');
 assert.equal(pickEdit(doc, f, 6, 1, 7, 8), null, 'on the closing line');
+// The Dimension style menu: the fence near the cursor, and where a style or a line goes in it.
+const two = ['<!--sheet-->', '```dim', 'image [a] 10x10', 'style color red', '// note', 'hdim 1,1 9,1', '```', 'x: 1', '```dim', 'image [b] 10x10', '```'];
+assert.deepEqual(fenceNear(two, 6), { open: 2, close: 7 }, 'the fence that holds the cursor');
+assert.deepEqual(fenceNear(two, 8), { open: 2, close: 7 }, 'else the nearest one above');
+assert.deepEqual(fenceNear(two, 1), { open: 2, close: 7 }, 'else the first one below');
+assert.equal(fenceNear(['<!--sheet-->', 'x: 1'], 2), null, 'no fence');
+assert.equal(dimInsertLine(two, { open: 2, close: 7 }, 6, 'style arrow tick'), 5, 'a style goes after the image and style lines');
+assert.equal(dimInsertLine(two, { open: 2, close: 7 }, 6, 'vdim 1,1 1,9'), 7, 'a line goes after the cursor line');
+assert.equal(dimInsertLine(two, { open: 2, close: 7 }, 8, 'vdim 1,1 1,9'), 7, 'from outside, before the closing line');
+assert.equal(dimInsertLine(two, { open: 9, close: 11 }, 10, 'style arrow dot'), 11, 'a style in a fence of a picture only');
 console.log('dim-edit: all ok');

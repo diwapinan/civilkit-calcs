@@ -68,3 +68,32 @@ export function pickEdit(lines: string[], f: DimFence, line: number, column: num
     else if (after === '') text += ' ';
     return { line, column, text };
 }
+
+/**
+ * The ```dim fence for a line inserted from the ribbon: the one that holds line `at`, or else the nearest one above
+ * it, or else the first one below it. Null when the document has none.
+ */
+export function fenceNear(lines: string[], at: number): DimFence | null {
+    const all: DimFence[] = [];
+    for (let n = 1; n <= lines.length; n++) {
+        const f = dimFence(lines, n);
+        if (f) { all.push(f); n = f.close; }
+    }
+    return all.find(f => at > f.open && at < f.close)
+        ?? [...all].reverse().find(f => f.open <= at)
+        ?? all[0] ?? null;
+}
+
+/**
+ * Where a line from the ribbon's Dimension style menu goes in fence `f`, with the caret on line `at`: a `style` line
+ * after the image line and the style lines below it (so it styles the whole figure); any other line after the caret's
+ * line when that is inside the fence, else before the closing line. Returns the line to insert before.
+ */
+export function dimInsertLine(lines: string[], f: DimFence, at: number, text: string): number {
+    if (/^\s*style\b/i.test(text)) {
+        let n = f.open + 1;
+        while (n < f.close && /^\s*(image|style|color|colour)\b|^\s*$/i.test(lines[n - 1] ?? '')) n++;
+        return n;
+    }
+    return at > f.open && at < f.close ? at + 1 : f.close;
+}

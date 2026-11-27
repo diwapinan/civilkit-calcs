@@ -8,6 +8,7 @@ import { sheetInsert } from './sheet-insert';
 import { diagramEdit } from './diagram-starters.ts';
 import { SymbolicDialog } from './symbolic';
 import { pickPicture } from '../editor/paste-dim';
+import { dimInsertLine, fenceNear } from '../editor/dim-edit';
 import { t } from '../i18n';
 import { requestSettingsTab } from 'calcpad-frontend/vue/settings-tab-request';
 
@@ -201,6 +202,39 @@ export function isActive(id: string, c: RibbonCtx): boolean {
     } catch {
         return false;
     }
+}
+
+/**
+ * Puts a line from the Dimension style menu into the ```dim fence at or near the cursor (editor/dim-edit.ts): a style
+ * after the picture line, any other line after the cursor's line. With no fence in the sheet it asks for a picture
+ * first (the Dimension figure button) and puts the line into the new fence. One undo step; the cursor ends on the line.
+ */
+export async function insertDimLine(editor: any, text: string): Promise<boolean> {
+    const model = editor?.getModel();
+    if (!model) return false;
+    const body = text.replace(/\n$/, '');
+    const at = editor.getPosition()?.lineNumber ?? 1;
+    let f = fenceNear(model.getLinesContent(), at);
+    if (!f) {
+        if (!isSheetEditor(editor) || !(await pickPicture(editor))) return false;
+        f = fenceNear(model.getLinesContent(), editor.getPosition()?.lineNumber ?? 1);
+        if (!f) return false;
+    }
+    const lines = model.getLinesContent();
+    const before = dimInsertLine(lines, f, editor.getPosition()?.lineNumber ?? at, body);
+    const indent = /^[ \t]*/.exec(lines[f.open] ?? '')?.[0] ?? '';
+    const count = model.getLineCount();
+    const range = before <= count
+        ? { startLineNumber: before, startColumn: 1, endLineNumber: before, endColumn: 1 }
+        : { startLineNumber: count, startColumn: model.getLineMaxColumn(count), endLineNumber: count, endColumn: model.getLineMaxColumn(count) };
+    editor.pushUndoStop();
+    editor.executeEdits('ribbon-dim', [{ range, text: before <= count ? indent + body + '\n' : '\n' + indent + body, forceMoveMarkers: true }]);
+    editor.pushUndoStop();
+    const line = Math.min(before, model.getLineCount());
+    editor.setPosition({ lineNumber: line, column: model.getLineMaxColumn(line) });
+    editor.revealLineInCenterIfOutsideViewport(line);
+    editor.focus();
+    return true;
 }
 
 /**

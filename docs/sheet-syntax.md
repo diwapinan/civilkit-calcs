@@ -136,6 +136,11 @@ hdim 60,250 {60 + L/(1 m)*80},250 offset 120 | 0.8 L = {0.8*L -> m}
   hdim 60,330 740,330 offset -55 style arch decimals 2 | L = {L -> m}
   ```
 
+  The ribbon's **Dimension style** menu (next to Dimension figure) puts a ready-made style (Architectural,
+  Engineering, Drawing, Open arrows, Dots), a named style (`main`, `note`) or a starter line (horizontal, vertical,
+  aligned, text, line) into the dim fence at or near the cursor: a style after the picture line, a line after the
+  cursor's line. With no fence in the sheet it asks for a picture first.
+
   `decimals` writes `#round n` before the values and `#round default` after them, so a `#round` of the
   worksheet's own before the fence is not restored.
 * A point is `x,y` with no space. A coordinate is a number or a value in braces.
