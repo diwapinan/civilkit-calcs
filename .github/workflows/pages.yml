@@ -1,0 +1,63 @@
+# Builds the app (the wasm modules and the web page) and publishes it on GitHub Pages, at
+# https://<owner>.github.io/civilkit-calcs/. The same steps as docs/DEPLOY.md, run by GitHub.
+# Settings > Pages > Source must be "GitHub Actions". A branch other than main also has to be allowed
+# to deploy: Settings > Environments > github-pages > Deployment branches.
+name: Pages
+
+on:
+  push:
+    branches: [main, feature/dim-figures]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      # The wasm-bindgen CLI must match the wasm-bindgen crate in Cargo.lock; wasm-opt (binaryen) makes the modules smaller.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.122
+      - name: Install wasm-opt
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+      - name: Build the wasm modules
+        run: sh tools/build_wasm.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build the page
+        working-directory: web
+        env:
+          CALCS_BASE: /${{ github.event.repository.name }}/
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          touch calcpad-web/dist/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/calcpad-web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
