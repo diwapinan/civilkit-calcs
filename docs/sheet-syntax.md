@@ -123,6 +123,12 @@ hdim 60,250 {60 + L/(1 m)*80},250 offset 120 | 0.8 L = {0.8*L -> m}
   follow the calculation: `{60 + L/(1 m)*80}` moves the end of a dimension with `L`. A coordinate must
   be a number, so divide a quantity by its unit (`L/(1 m)`) or write `{L -> m}` (the number of metres).
 
+**Paste a picture** (a screenshot of a drawing, say) into a sheet with Ctrl+V and the editor writes the fence
+for it: the picture as a `data:` URL with its size, scaled down to 1600 pixels on its longer side, and three
+commented starter lines (`// hdim`, `// vdim`, `// text`) in the picture's own pixels. Remove `//` from a
+line and edit its points and label. In a Calcpad worksheet a pasted picture is an image line. A clipboard that
+also holds text (a spreadsheet range) pastes the text.
+
 The compiler writes the figure as Calcpad text lines holding HTML: the picture, an SVG layer in the
 picture's pixel coordinates, and the labels as HTML over it, with `#val ... #end val` and
 `#equ ... #end equ` around the values, so the output mode around the fence is kept. The report needs no

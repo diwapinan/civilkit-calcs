@@ -57,6 +57,7 @@ import { attachQuickTyper } from './editor/quick-type';
 import { attachOperatorReplacer } from './editor/operator-replacer';
 import { attachAutoIndenter } from './editor/auto-indent';
 import { attachToFormula } from './editor/to-formula-monaco';
+import { attachPicturePaste, insertPicture, readPicture } from './editor/paste-dim';
 import { registerFormattingCommands, getParseMode } from './editor/formatting-commands';
 import { looksLikeLine, sheetInsert } from './wasm/sheet-insert';
 import { insertEdit, type InsertBlock } from './wasm/sheet-blocks';
@@ -1090,6 +1091,7 @@ async function bootstrap(): Promise<void> {
         attachToFormula(ed);
         attachAutoIndenter(ed);
         attachProseToolbar(ed);
+        group.disposables.push(attachPicturePaste(ed));
         registerFormattingCommands(ed, editorBridge);
         // Ctrl/Cmd+Shift+K deletes the sheet block that holds the caret (Monaco's own binding deletes the line, which stays for other files);
         // Ctrl/Cmd+Shift+/ disables it or, on a disabled block, enables it again.
@@ -2918,6 +2920,12 @@ async function bootstrap(): Promise<void> {
                 return false;
             }
             if (!pngBytes) return false;
+            if (editor.getModel()?.getLanguageId() === 'calcpad-sheet') {
+                // In a sheet the picture goes in as a dim fence, ready for dimension lines (editor/paste-dim.ts).
+                const bytes = pngBytes;
+                insertPicture(editor, await readPicture(new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: 'image/png' })));
+                return true;
+            }
             await tauriBridge!.insertImageData({
                 data: pngBytes,
                 mimeType: 'image/png',
