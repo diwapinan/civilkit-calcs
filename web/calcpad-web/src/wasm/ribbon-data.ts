@@ -356,6 +356,7 @@ export const RIBBON: RibbonTab[] = [
                 big('r-text', 'Text', 'comment', "Insert a line of text: 'Text in a worksheet, a paragraph in a sheet", { text: "'Text\n", line: true, sheet: 'Text\n' }),
                 big('r-heading', 'Heading', 'heading', 'Insert a heading: "Heading in a worksheet, ## Heading in a sheet', { text: '"Heading\n', line: true, sheet: '## Heading\n' }),
                 big('r-image', 'Image', 'image', 'Insert a picture from a file: <img src="./image.png"> in a worksheet, ![Image](./image.png) in a sheet', { text: IMAGE_WS, line: true, sheet: IMAGE_SHEET }),
+                action('r-dimfig', 'Dimension figure', 'dimfig', "Insert a picture with dimension lines whose labels come from the sheet's quantities: a ```dim fence (in a worksheet, an image line)", 'dimfigure'),
                 big('r-plot', 'Plot', 'plot', 'Insert a function plot: $Plot{sin(x) @ x = 0 : 2*π}', { text: '$Plot{sin(x) @ x = 0 : 2*π}\n', line: true, nox: true, sheet: 'plot sin(x) for x in 0..2*π\n' }),
                 big('r-table', 'Table', 'table', 'Insert a table: HTML in a worksheet, Markdown pipes in a sheet', { text: TABLE_WS, line: true, sheet: TABLE_SHEET }),
             ] },
@@ -491,6 +492,7 @@ export const RIBBON: RibbonTab[] = [
             { name: 'Figures', buttons: [
                 pal('dg-diagrams', 'Diagrams', 'diagram', 'Insert a starter diagram: flowchart, sequence, Gantt, pie, Sankey and more, drawn from text', PAL_DIAGRAMS),
                 big('pl-image', 'Image', 'image', 'Insert a picture from a file: <img src="./image.png"> in a worksheet, ![Image](./image.png) in a sheet', { text: IMAGE_WS, line: true, sheet: IMAGE_SHEET }),
+                action('pl-dimfig', 'Dimension figure', 'dimfig', "Insert a picture with dimension lines whose labels come from the sheet's quantities: a ```dim fence (in a worksheet, an image line)", 'dimfigure'),
             ] },
         ],
     },

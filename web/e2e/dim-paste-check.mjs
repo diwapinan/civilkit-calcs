@@ -36,7 +36,7 @@ check(lines[1] === 'L: 6 m' && lines[2] === '', `the fence goes after the cursor
 check(lines[3] === '```dim', 'the fence opens with ```dim');
 check(/^image data:image\/png;base64,\S+ 1600x800 width 640$/.test(lines[4] ?? ''), `the picture is scaled to 1600 x 800 and its size written (${(lines[4] ?? '').replace(/base64,\S+/, 'base64,…')})`);
 check(lines.some(l => l.startsWith('// hdim 160,680 1440,680 offset -80 | {L}')), 'a starter horizontal dimension in the picture\'s pixels');
-check(lines[lines.indexOf('```dim') + 6] === '```' && lines.at(-1) === 'h: 450 mm', 'the fence is closed and the rest of the sheet follows');
+check(lines[lines.indexOf('```dim') + 7] === '```' && lines.at(-1) === 'h: 450 mm', 'the fence is closed and the rest of the sheet follows');
 const pos = await page.evaluate(() => window.calcpadActiveEditor.getPosition().lineNumber);
 check(lines[pos - 1]?.startsWith('// hdim'), `the cursor lands on the first starter line (line ${pos})`);
 await page.evaluate(() => window.calcpadActiveEditor.trigger('t', 'undo', null));
@@ -45,6 +45,23 @@ check(!(await page.evaluate(() => window.calcpadActiveEditor.getValue())).includ
 await paste(true);
 await page.waitForTimeout(800);
 check(!(await page.evaluate(() => window.calcpadActiveEditor.getValue())).includes('```dim'), 'a clipboard with text does not paste as a picture');
+
+// The ribbon's Dimension figure button (Plots & Diagrams tab): a picture from a file goes in the same way.
+await page.evaluate(t => { const ed = window.calcpadActiveEditor; ed.setValue(t); ed.setPosition({ lineNumber: 2, column: 1 }); }, ['<!--sheet-->', 'L: 6 m'].join('\n'));
+await page.click('[data-ribbon-tab="plots"]');
+const png = await page.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 300; c.height = 200;
+    const b = await new Promise(r => c.toBlob(r, 'image/png'));
+    return Array.from(new Uint8Array(await b.arrayBuffer()));
+});
+const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-ribbon-btn="pl-dimfig"]')]);
+await chooser.setFiles({ name: 'beam.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+await page.waitForFunction(() => window.calcpadActiveEditor.getValue().includes('```dim'), null, { timeout: 10000 }).catch(() => {});
+const after = (await page.evaluate(() => window.calcpadActiveEditor.getValue())).split('\n');
+check(after[3] === '```dim' && / 300x200 width 300$/.test(after[4] ?? ''), `the ribbon button inserts the picture as a dim fence (${(after[4] ?? '').replace(/base64,\S+/, 'base64,…')})`);
+await page.click('[data-ribbon-tab="math"]');
+check(await page.locator('[data-ribbon-btn="r-dimfig"]').count() === 1, 'the Math tab has the button too');
+
 await browser.close();
 console.log(fails.length ? `${fails.length} FAIL` : 'all ok');
 process.exit(fails.length ? 1 : 0);

@@ -65,6 +65,8 @@ export const ICONS_BIG: Record<string, string> = {
     heading: ln('M8 6v20M24 6v20') + ac('M8 16h16'),
     text: ln('M16 9v17M12 26h8') + ac('M6 9h20M6 9v3.500M26 9v3.500'),
     image: fs('f1', 'M4 5h24v22H4z') + fs('f3', 'M4 27l8-10 6 7 4-4 6 7z') + circ('af', 22, 11, 2.800),
+    // A picture with a dimension line over it: the line, its two extension lines and its arrowheads.
+    dimfig: fs('f1', 'M4 10h24v18H4z') + fs('f3', 'M4 28l7-8 5 5 4-3 8 6z') + gd('M7 3v8M25 3v8') + ac('M8.500 6h15') + af('M7 6l4-2.500v5zM25 6l-4-2.500v5z'),
     plot: ln('M5 4v23h23') + ac('M8 21c3.500-13 6.500 3 10-4.500s5-6 9-9') + dot(8, 21) + dot(27, 7.500),
     // A flowchart: a step, a decision and a step joined by arrows.
     diagram: q('M10 3.500h12v5.500H10z') + ln('M16 9v3M16 21v3') + fs('f1', 'M16 12l6.500 4.500L16 21l-6.500-4.500z') + q('M10 24h12v4.500H10z'),
@@ -210,6 +212,7 @@ export const ICONS_SMALL: Record<string, string> = {
     text: sm('M12 7v13M9 20h6', 'M5 5h14'),
     mathline: sm('M4 8h9M4 16h9', 'M16 9l4 6M20 9l-4 6'),
     image: sm('M4 18l5-5 4 4 3-3 4 4', 'M9 8a1.500 1.500 0 100 3 1.500 1.500 0 000-3z', 'M3 5h18v14H3z'),
+    dimfig: sm('M4 19l5-5 4 4 3-3 4 4M5 2v6M19 2v6', 'M6 5h12M6 5l2.500-1.500M6 5l2.500 1.500M18 5l-2.500-1.500M18 5l-2.500 1.500', 'M3 9h18v12H3z'),
     ui: sm('M6 10h6M6 14h9', '', 'M3 5h18v14H3z'),
     plot: sm('M4 4v16h16', 'M7 15l4-5 3 3 5-7'),
     map: sm('M4 10h16M4 15h16M10 4v16M15 4v16', '', 'M4 4h16v16H4z'),

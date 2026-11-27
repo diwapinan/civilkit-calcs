@@ -24,7 +24,7 @@ export function fitSize(width: number, height: number, max = MAX_SIDE): { width:
 
 /**
  * The ```dim fence for a picture: the image line, then commented starter lines in the picture's own
- * coordinates (a horizontal dimension under it and a vertical one at its right), to uncomment and edit.
+ * coordinates (a style, a horizontal dimension under the picture and a vertical one at its right), to uncomment and edit.
  */
 export function dimFence(p: PastedPicture, shown = Math.min(p.width, 640)): string {
     const { width: w, height: h } = p;
@@ -35,6 +35,7 @@ export function dimFence(p: PastedPicture, shown = Math.min(p.width, 640)): stri
         '```dim',
         `image ${p.src} ${w}x${h} width ${m(shown)}`,
         `// Points are pixels of the picture (x right, y down from the top left). Remove // to draw a line.`,
+        `// style arrow tick color #37474f text above decimals 2`,
         `// hdim ${x0},${y1} ${x1},${y1} offset -${off} | {L}`,
         `// vdim ${x1},${y0} ${x1},${y1} offset -${off} | h = {h -> mm}`,
         `// text ${m(w / 2)},${m(h / 2)} | w = {w -> kN/m}`,
@@ -109,10 +110,33 @@ export function insertPicture(editor: monaco.editor.ICodeEditor, p: PastedPictur
     editor.pushUndoStop();
     editor.executeEdits('paste-picture', [{ range: new monaco.Range(line, end, line, end), text, forceMoveMarkers: true }]);
     editor.pushUndoStop();
-    const first = line + (here ? 2 : 0) + (sheet ? 3 : 0);
+    const first = line + (here ? 2 : 0) + (sheet ? 4 : 0);
     editor.setPosition({ lineNumber: first, column: 1 });
     editor.revealLineInCenterIfOutsideViewport(first);
     editor.focus();
+}
+
+/** Asks for a picture file and writes it into the editor as a paste would (the ribbon's Dimension figure). */
+export function pickPicture(editor: monaco.editor.ICodeEditor | null | undefined): Promise<boolean> {
+    if (!editor?.getModel()) return Promise.resolve(false);
+    return new Promise(resolve => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml';
+        input.style.display = 'none';
+        input.addEventListener('change', () => {
+            const file = input.files?.[0];
+            input.remove();
+            if (!file) { resolve(false); return; }
+            readPicture(file).then(p => { insertPicture(editor, p); resolve(true); }, err => {
+                console.warn('[dimension figure] not inserted:', err);
+                resolve(false);
+            });
+        });
+        input.addEventListener('cancel', () => { input.remove(); resolve(false); });
+        document.body.appendChild(input);
+        input.click();
+    });
 }
 
 /**

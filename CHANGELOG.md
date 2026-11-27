@@ -15,6 +15,7 @@ under "Crates" at the end, on plain 0.x semver, and are tagged `<crate-name>-v<v
 - **Dimension figures** - A ```` ```dim ```` fence in a sheet draws dimension lines (aligned, horizontal and vertical), lines and labels over a picture, with the labels filled in from the sheet's quantities (`{L}`, `{h -> mm}`) and, if wanted, the geometry too (`{60 + L/(1 m)*80}`), so the figure follows every recalculation. See "Dimension figures" in docs/sheet-syntax.md.
 - **Paste a picture into a sheet** - Ctrl+V with a picture on the clipboard writes a dim fence for it: the picture with its size in pixels and starter dimension lines to fill in. In a Calcpad worksheet the picture goes in as an image line.
 - **Dimension styles** - `style` lines in a dim fence set the arrowheads (filled, open, tick, dot, none), colour, line weight, text size and place (on, above or below the line), the decimals of the values and the label box; a named style (`style arch ...`) applies to the lines that ask for it (`style arch`).
+- **Dimension figure button** - The ribbon's Math tab and Plots & Diagrams > Figures have a Dimension figure button: it asks for a picture and writes the dim fence for it, as pasting does.
 - **Pick points on a dimension figure** - In the preview, the pointer over a figure shows its position in the picture's pixels; a drag adds a dimension line to the fence (straightened to horizontal or vertical within 8 degrees), and a click puts the point at the editor's cursor when that is inside the fence.
 
 ## [26.11.4] - 2026-11-16

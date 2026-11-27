@@ -7,6 +7,7 @@ import { convertToCalcpad, newSheet, showCompiled } from './sheet-ui';
 import { sheetInsert } from './sheet-insert';
 import { diagramEdit } from './diagram-starters.ts';
 import { SymbolicDialog } from './symbolic';
+import { pickPicture } from '../editor/paste-dim';
 import { t } from '../i18n';
 import { requestSettingsTab } from 'calcpad-frontend/vue/settings-tab-request';
 
@@ -109,6 +110,8 @@ let symbolic: SymbolicDialog | null = null;
 type Handler = (c: RibbonCtx, arg: string) => void;
 export const ACTIONS: Record<string, Handler> = {
     newsheet: c => newSheet(c.files.o.tabs()),
+    // A picture from a file, as a ```dim fence ready for dimension lines (editor/paste-dim.ts).
+    dimfigure: c => void pickPicture(c.editor()),
     newcalcpad: c => c.files.newWorksheet(),
     changelog: () => void window.open(CHANGELOG_URL, '_blank', 'noopener'),
     showcompiled: c => void showCompiled(c.editor()),
