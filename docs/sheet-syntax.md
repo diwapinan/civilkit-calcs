@@ -113,8 +113,30 @@ hdim 60,250 {60 + L/(1 m)*80},250 offset 120 | 0.8 L = {0.8*L -> m}
   with the line `d` pixels above `P1` (a negative offset is below), and **`vdim`** vertically, with the
   line `d` pixels left of `P1`. Extension lines are drawn when the offset is not 0.
 * **`line P1 P2 [P3 ...]`** draws a line through the points; **`text P | label`** places a label.
-* **`color C`** alone sets the colour of the lines after it; `color C` after the points sets it for one
-  line, and `size N` the label's text size in px. `//` starts a comment line.
+* **`color C`** alone sets the colour of the lines after it (the same as `style color C`). `//` starts a comment line.
+* **Dimension styles:** `style KEY VALUE ...` sets the style of the lines after it, and
+  `style NAME KEY VALUE ...` names a style that a line takes with `style NAME` after its points (a named
+  style is the keys it sets, over the current style). Any key can also follow the points of one line. The keys:
+
+  | Key | Values | Default |
+  |---|---|---|
+  | `color` | a CSS colour: `blue`, `#1565c0`, `rgb(21,101,192)` | `#d32f2f` |
+  | `weight` | line weight, pixels of the picture | the picture's longer side / 400 |
+  | `arrow` | `arrow` (filled), `open`, `tick` (oblique, architectural), `dot`, `none` | `arrow` |
+  | `arrowsize` | pixels of the picture | 7 × weight |
+  | `text` | `center` (on the line), `above`, `below` | `center` |
+  | `size` | text size, CSS px | the picture's longer side / 45, from 11 to 18 |
+  | `decimals` | decimals of the values in the label (the engine's `#round`), or `auto` | `auto` |
+  | `box` | `on` or `off`: a white box behind the label | `on` |
+  | `gap`, `ext` | the gap before an extension line, and how far it runs past the dimension line | 2 and 4 × weight |
+
+  ```
+  style arch arrow tick color #37474f weight 2 text above box off
+  hdim 60,330 740,330 offset -55 style arch decimals 2 | L = {L -> m}
+  ```
+
+  `decimals` writes `#round n` before the values and `#round default` after them, so a `#round` of the
+  worksheet's own before the fence is not restored.
 * A point is `x,y` with no space. A coordinate is a number or a value in braces.
 * **The label** follows `|`. Text is shown as written, and a value in braces is filled in:
   `{L}` (a name alone) is the engine's `L = 6 m`; `{h -> mm}` is the number in that unit with the

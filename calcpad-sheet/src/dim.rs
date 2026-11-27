@@ -285,24 +285,181 @@ fn label(s: &str, ctx: &Ctx) -> Result<Vec<Seg>, String> {
     Ok(out)
 }
 
+/// The ends of a dimension line.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Arrow {
+    /// A filled arrowhead.
+    Filled,
+    /// An open arrowhead (two strokes).
+    Open,
+    /// An oblique tick, as on architectural drawings.
+    Tick,
+    /// A dot.
+    Dot,
+    None,
+}
+
+/// Where a dimension's text sits: on the line (over a box), or beside it.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum TextPos {
+    Center,
+    Above,
+    Below,
+}
+
+/// A dimension style: how lines, ends and labels are drawn. Lengths are pixels of the picture, except
+/// the text size, which is CSS px.
+#[derive(Clone, Debug)]
 struct Style {
     colour: String,
-    /// Stroke width in picture pixels.
+    /// Line weight.
     sw: f64,
-    /// Label font size in CSS px at the picture's own width.
+    /// Label text size.
     font: f64,
+    arrow: Arrow,
+    arrow_size: f64,
+    text: TextPos,
+    /// Gap between the measured point and the start of an extension line.
+    gap: f64,
+    /// How far an extension line runs past the dimension line.
+    ext: f64,
+    /// Decimals of the values in labels (the engine's `#round`), or the sheet's own setting.
+    decimals: Option<u32>,
+    /// A white box behind the label.
+    boxed: bool,
+}
+
+/// The keys of a style, in `style` lines and after the points of a line.
+const STYLE_KEYS: &[&str] = &[
+    "color", "colour", "weight", "size", "arrow", "arrowsize", "text", "gap", "ext", "decimals", "box",
+];
+
+impl Style {
+    /// The default style for a picture of `w` x `h` pixels.
+    fn for_picture(w: f64, h: f64) -> Style {
+        let sw = (w.max(h) / 400.0).max(1.0);
+        Style {
+            colour: "#d32f2f".into(),
+            sw,
+            font: (w.max(h) / 45.0).clamp(11.0, 18.0).round(),
+            arrow: Arrow::Filled,
+            arrow_size: sw * 7.0,
+            text: TextPos::Center,
+            gap: sw * 2.0,
+            ext: sw * 4.0,
+            decimals: None,
+            boxed: true,
+        }
+    }
+
+    /// Sets one key.
+    fn set(&mut self, key: &str, v: &str) -> Result<(), String> {
+        let pos = |what: &str| -> Result<f64, String> {
+            v.parse::<f64>()
+                .ok()
+                .filter(|x| x.is_finite() && *x >= 0.0)
+                .ok_or_else(|| format!("the {what} '{v}' is not a number of 0 or more"))
+        };
+        match key {
+            "color" | "colour" => self.colour = colour(v)?,
+            "weight" => self.sw = pos("weight")?.max(0.1),
+            "size" => self.font = pos("text size")?.max(1.0),
+            "arrowsize" => self.arrow_size = pos("arrow size")?,
+            "gap" => self.gap = pos("gap")?,
+            "ext" => self.ext = pos("extension")?,
+            "arrow" => {
+                self.arrow = match v.to_ascii_lowercase().as_str() {
+                    "arrow" | "filled" | "closed" => Arrow::Filled,
+                    "open" => Arrow::Open,
+                    "tick" | "oblique" | "arch" => Arrow::Tick,
+                    "dot" => Arrow::Dot,
+                    "none" => Arrow::None,
+                    _ => return Err(format!("'{v}' is not an arrow (arrow, open, tick, dot, none)")),
+                }
+            }
+            "text" => {
+                self.text = match v.to_ascii_lowercase().as_str() {
+                    "center" | "centre" | "on" => TextPos::Center,
+                    "above" => TextPos::Above,
+                    "below" => TextPos::Below,
+                    _ => return Err(format!("'{v}' is not a text place (center, above, below)")),
+                }
+            }
+            "decimals" => {
+                self.decimals = match v {
+                    "auto" | "default" => None,
+                    _ => Some(
+                        v.parse::<u32>()
+                            .ok()
+                            .filter(|d| *d <= 15)
+                            .ok_or_else(|| format!("the decimals '{v}' are not a whole number from 0 to 15 (or auto)"))?,
+                    ),
+                }
+            }
+            "box" => {
+                self.boxed = match v.to_ascii_lowercase().as_str() {
+                    "on" | "yes" | "true" => true,
+                    "off" | "no" | "false" => false,
+                    _ => return Err(format!("'{v}' is not on or off")),
+                }
+            }
+            _ => return Err(format!("'{key}' is not a style key ({})", STYLE_KEYS.join(", "))),
+        }
+        Ok(())
+    }
 }
 
 /// What the figure draws, element by element.
 struct Out {
     svg: Vec<(String, usize, bool)>,
     labels: Vec<(Vec<(String, usize)>, usize)>,
+    /// The arrowheads used, one marker each: (kind, colour, size).
+    markers: Vec<(Arrow, String, f64)>,
 }
 
 impl Out {
     fn svg(&mut self, s: String, line: usize, dynamic: bool) {
         self.svg.push((s, line, dynamic));
     }
+
+    /// The marker attributes for the ends of a dimension line in this style ("" for none).
+    fn ends(&mut self, st: &Style) -> String {
+        if st.arrow == Arrow::None || st.arrow_size <= 0.0 {
+            return String::new();
+        }
+        let key = (st.arrow, st.colour.clone(), st.arrow_size);
+        let n = match self.markers.iter().position(|m| *m == key) {
+            Some(n) => n,
+            None => {
+                self.markers.push(key);
+                self.markers.len() - 1
+            }
+        };
+        format!(" marker-start=\"url(#{{M}}-{n})\" marker-end=\"url(#{{M}}-{n})\"")
+    }
+}
+
+/// The SVG marker for an arrowhead, drawn in a 10 x 10 box.
+fn marker_def(id: &str, (arrow, colour, size): &(Arrow, String, f64)) -> String {
+    let (refx, orient, shape) = match arrow {
+        Arrow::Filled => ("10", "auto-start-reverse", format!("<path d=\"M0,1 L10,5 L0,9 z\" fill=\"{colour}\"/>")),
+        Arrow::Open => (
+            "10",
+            "auto-start-reverse",
+            format!("<path d=\"M0,1 L10,5 L0,9\" fill=\"none\" stroke=\"{colour}\" stroke-width=\"1.4\"/>"),
+        ),
+        Arrow::Tick => (
+            "5",
+            "auto",
+            format!("<path d=\"M1,9 L9,1\" stroke=\"{colour}\" stroke-width=\"1.6\"/>"),
+        ),
+        Arrow::Dot | Arrow::None => ("5", "auto", format!("<circle cx=\"5\" cy=\"5\" r=\"3\" fill=\"{colour}\"/>")),
+    };
+    let ms = num(*size);
+    format!(
+        "<marker id=\"{id}\" viewBox=\"0 0 10 10\" refX=\"{refx}\" refY=\"5\" markerUnits=\"userSpaceOnUse\" \
+         markerWidth=\"{ms}\" markerHeight=\"{ms}\" orient=\"{orient}\" overflow=\"visible\">{shape}</marker>"
+    )
 }
 
 fn is_dyn(cs: &[&C]) -> bool {
@@ -343,9 +500,20 @@ fn place_label(out: &mut Out, segs: Vec<Seg>, at: &P, angle: f64, w: f64, h: f64
     } else {
         String::new()
     };
+    // Above or below: moved off the line by most of its own height, across the line (after the turn).
+    let shift = match st.text {
+        TextPos::Center => "",
+        TextPos::Above => " translate(0,-78%)",
+        TextPos::Below => " translate(0,78%)",
+    };
+    let bg = if st.boxed {
+        "background:rgba(255,255,255,.85);"
+    } else {
+        ""
+    };
     let open = format!(
-        "<div class=\"ck-dim-label\" style=\"position:absolute;left:{}%;top:{}%;transform:translate(-50%,-50%){rot};\
-         white-space:nowrap;padding:0 .25em;background:rgba(255,255,255,.85);color:{};font:{}px/1.2 sans-serif;pointer-events:none\">",
+        "<div class=\"ck-dim-label\" style=\"position:absolute;left:{}%;top:{}%;transform:translate(-50%,-50%){rot}{shift};\
+         white-space:nowrap;padding:0 .25em;{bg}color:{};font:{}px/1.2 sans-serif;pointer-events:none\">",
         att(&left),
         att(&top),
         st.colour,
@@ -359,6 +527,11 @@ fn place_label(out: &mut Out, segs: Vec<Seg>, at: &P, angle: f64, w: f64, h: f64
     ls.push((format!("'{open}"), idx));
     if dynamic {
         ls.push(("#end val".to_string(), idx));
+    }
+    // The decimals of the values: the engine's #round around them, back to the sheet's setting after.
+    let values = segs.iter().any(|s| !matches!(s, Seg::Text(_)));
+    if let (Some(d), true) = (st.decimals, values) {
+        ls.push((format!("#round {d}"), idx));
     }
     for s in segs {
         match s {
@@ -375,6 +548,9 @@ fn place_label(out: &mut Out, segs: Vec<Seg>, at: &P, angle: f64, w: f64, h: f64
                 ls.push(("#end val".to_string(), idx));
             }
         }
+    }
+    if st.decimals.is_some() && values {
+        ls.push(("#round default".to_string(), idx));
     }
     ls.push(("'</div>".to_string(), idx));
     out.labels.push((ls, idx));
@@ -405,8 +581,8 @@ fn dimension(
     st: &Style,
     idx: usize,
 ) {
-    let gap = C::N(st.sw * 2.0);
-    let over = C::N(st.sw * 4.0);
+    let gap = C::N(st.gap);
+    let over = C::N(st.ext);
     let sgn = if off < 0.0 { -1.0 } else { 1.0 };
     let (q1, q2, e1, e2, angle);
     match kind {
@@ -506,7 +682,8 @@ fn dimension(
             out.svg(s, idx, d);
         }
     }
-    let (s, d) = line_el(&q1, &q2, st, " marker-start=\"url(#{M})\" marker-end=\"url(#{M})\"");
+    let ends = out.ends(st);
+    let (s, d) = line_el(&q1, &q2, st, &ends);
     out.svg(s, idx, d);
     if !segs.is_empty() {
         let mid = P {
@@ -521,14 +698,13 @@ fn dimension(
 pub fn compile(body: &[(String, usize)], open: usize, seq: usize, ctx: &Ctx) -> Figure {
     let mut errors = Vec::new();
     let mut image: Option<(String, f64, f64, Option<String>, String)> = None;
-    let mut st = Style {
-        colour: "#d32f2f".into(),
-        sw: 0.0,
-        font: 0.0,
-    };
+    let mut st = Style::for_picture(800.0, 400.0);
+    // Named styles: the keys each one sets, applied over the current style where it is used.
+    let mut named: Vec<(String, Vec<(String, String)>)> = Vec::new();
     let mut out = Out {
         svg: Vec::new(),
         labels: Vec::new(),
+        markers: Vec::new(),
     };
     for (raw, idx) in body {
         let idx = *idx;
@@ -601,8 +777,9 @@ pub fn compile(body: &[(String, usize)], open: usize, seq: usize, ctx: &Ctx) -> 
                     }
                 }
             }
-            st.sw = (w.max(h) / 400.0).max(1.0);
-            st.font = (w.max(h) / 45.0).clamp(11.0, 18.0).round();
+            let colour = st.colour.clone();
+            st = Style::for_picture(w, h);
+            st.colour = colour;
             image = Some((file.to_string(), w, h, width, alt));
             continue;
         }
@@ -622,21 +799,52 @@ pub fn compile(body: &[(String, usize)], open: usize, seq: usize, ctx: &Ctx) -> 
             ));
             continue;
         };
+        if kw == "style" {
+            // `style KEY VALUE ...` sets the style of the lines after it; `style NAME KEY VALUE ...` names a
+            // style that a line takes with `style NAME`.
+            let first = ws.get(1).map(|s| s.to_ascii_lowercase()).unwrap_or_default();
+            let (name, rest) = if first.is_empty() || STYLE_KEYS.contains(&first.as_str()) {
+                (None, &ws[1..])
+            } else {
+                (Some(ws[1].to_string()), &ws[2..])
+            };
+            if lab.is_some() || rest.is_empty() || rest.len() % 2 == 1 {
+                errors.push((idx, "write 'style [NAME] KEY VALUE ...', as: style arrow tick color blue size 14".into()));
+                continue;
+            }
+            let mut trial = st.clone();
+            let mut pairs = Vec::new();
+            let mut bad = None;
+            for kv in rest.chunks(2) {
+                let k = kv[0].to_ascii_lowercase();
+                if let Err(m) = trial.set(&k, kv[1]) {
+                    bad = Some(m);
+                    break;
+                }
+                pairs.push((k, kv[1].to_string()));
+            }
+            match (bad, name) {
+                (Some(m), _) => errors.push((idx, m)),
+                (None, None) => st = trial,
+                (None, Some(n)) => {
+                    named.retain(|(m, _)| !m.eq_ignore_ascii_case(&n));
+                    named.push((n, pairs));
+                }
+            }
+            continue;
+        }
         // The options after the points.
         let mut pts = Vec::new();
         let mut off = 0.0;
         let mut bad = None;
         let mut i = 1;
-        let mut el_style = Style {
-            colour: st.colour.clone(),
-            sw: st.sw,
-            font: st.font,
-        };
+        let mut el_style = st.clone();
         while i < ws.len() {
             let wd = ws[i];
             let key = wd.to_ascii_lowercase();
+            let is_opt = key == "offset" || key == "style" || STYLE_KEYS.contains(&key.as_str());
             match key.as_str() {
-                "offset" | "color" | "colour" | "size" => {
+                _ if is_opt => {
                     let Some(v) = ws.get(i + 1) else {
                         bad = Some(format!("'{wd}' needs a value"));
                         break;
@@ -646,14 +854,22 @@ pub fn compile(body: &[(String, usize)], open: usize, seq: usize, ctx: &Ctx) -> 
                             Ok(o) if o.is_finite() => off = o,
                             _ => bad = Some(format!("the offset '{v}' is not a number (pixels of the picture)")),
                         },
-                        "size" => match v.parse::<f64>() {
-                            Ok(f) if f > 0.0 => el_style.font = f,
-                            _ => bad = Some(format!("the text size '{v}' is not a number")),
+                        "style" => match named.iter().find(|(n, _)| n.eq_ignore_ascii_case(v)) {
+                            Some((_, pairs)) => {
+                                for (k, x) in pairs {
+                                    let _ = el_style.set(k, x);
+                                }
+                            }
+                            None => bad = Some(format!("no style is named '{v}' above this line")),
                         },
-                        _ => match colour(v) {
-                            Ok(c) => el_style.colour = c,
-                            Err(m) => bad = Some(m),
-                        },
+                        _ => {
+                            if let Err(m) = el_style.set(&key, v) {
+                                bad = Some(m);
+                            }
+                        }
+                    }
+                    if bad.is_some() {
+                        break;
                     }
                     i += 2;
                 }
@@ -724,7 +940,7 @@ pub fn compile(body: &[(String, usize)], open: usize, seq: usize, ctx: &Ctx) -> 
             }
             _ => errors.push((
                 idx,
-                format!("'{kw}' is not a figure line (image, dim, hdim, vdim, line, text, color)"),
+                format!("'{kw}' is not a figure line (image, dim, hdim, vdim, line, text, color, style)"),
             )),
         }
     }
@@ -761,12 +977,16 @@ pub fn compile(body: &[(String, usize)], open: usize, seq: usize, ctx: &Ctx) -> 
         ),
         open,
     ));
-    let ms = num(st.sw * 7.0);
+    let defs: String = out
+        .markers
+        .iter()
+        .enumerate()
+        .map(|(n, m)| marker_def(&format!("{marker}-{n}"), m))
+        .collect();
     lines.push((
         format!(
             "'<svg viewBox=\"0 0 {} {}\" preserveAspectRatio=\"none\" aria-hidden=\"true\" style=\"position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible\">\
-             <defs><marker id=\"{marker}\" viewBox=\"0 0 10 10\" refX=\"10\" refY=\"5\" markerUnits=\"userSpaceOnUse\" markerWidth=\"{ms}\" markerHeight=\"{ms}\" orient=\"auto-start-reverse\">\
-             <path d=\"M0,1 L10,5 L0,9 z\" fill=\"context-stroke\"/></marker></defs>",
+             <defs>{defs}</defs>",
             num(w),
             num(h)
         ),
@@ -844,4 +1064,40 @@ mod tests {
         let lines: Vec<usize> = f.errors.iter().map(|e| e.0).collect();
         assert_eq!(lines, vec![1, 2, 4, 5, 6], "{:?}", f.errors);
     }
+
+    #[test]
+    fn styles_set_the_ends_the_text_and_the_decimals() {
+        let f = run("image a.png 800x400\nstyle arrow tick color blue size 14 text above decimals 2\nhdim 0,300 800,300 | {L -> m}\nhdim 0,100 800,100 arrow dot");
+        assert!(f.errors.is_empty(), "{:?}", f.errors);
+        let all = f.lines.iter().map(|l| l.0.as_str()).collect::<Vec<_>>().join("\n");
+        // One marker per kind and colour, the tick turned with the line (not reversed at the start).
+        assert!(all.contains("<marker id=\"ck-dim-1-0\"") && all.contains("orient=\"auto\""), "{all}");
+        assert!(all.contains("M1,9 L9,1\" stroke=\"blue\""), "{all}");
+        assert!(all.contains("<marker id=\"ck-dim-1-1\"") && all.contains("<circle"), "{all}");
+        assert!(all.contains("marker-end=\"url(#ck-dim-1-0)\""), "{all}");
+        // The text above the line, at 14 px, with its values rounded to 2 decimals and the setting restored.
+        assert!(all.contains("translate(0,-78%)") && all.contains("font:14px"), "{all}");
+        assert!(all.contains("#round 2\n#val\n'<span class=\"ck-dim-v\">'L|m'"), "{all}");
+        assert!(all.contains("#end val\n#round default\n'</div>"), "{all}");
+    }
+
+    #[test]
+    fn named_styles_apply_where_they_are_used() {
+        let f = run("image a.png 800x400\nstyle beam arrow open color green\nhdim 0,300 800,300 style beam | {L}\nhdim 0,100 800,100\nhdim 0,50 800,50 style column");
+        assert_eq!(f.errors.len(), 1, "{:?}", f.errors);
+        assert_eq!(f.errors[0].0, 5, "{:?}", f.errors);
+        let all = f.lines.iter().map(|l| l.0.as_str()).collect::<Vec<_>>().join("\n");
+        // The named style: open green arrows on the first line only; the second keeps the default filled red.
+        assert!(all.contains("M0,1 L10,5 L0,9\" fill=\"none\" stroke=\"green\""), "{all}");
+        assert!(all.contains("M0,1 L10,5 L0,9 z\" fill=\"#d32f2f\""), "{all}");
+        assert!(all.contains("color:green"), "{all}");
+    }
+
+    #[test]
+    fn bad_style_keys_are_errors() {
+        let f = run("image a.png 800x400\nstyle arrow star\nstyle decimals -1\nstyle size\nhdim 0,1 9,1 weight heavy");
+        let lines: Vec<usize> = f.errors.iter().map(|e| e.0).collect();
+        assert_eq!(lines, vec![2, 3, 4, 5], "{:?}", f.errors);
+    }
+
 }
