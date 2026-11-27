@@ -18,6 +18,7 @@
 //! ("Dimension figures"). This is our addition and not part of CalcpadCE.
 
 use crate::expr::{self, Ctx};
+use std::collections::HashMap;
 
 /// One compiled figure: Calcpad lines with the sheet line each comes from, and the problems found.
 pub struct Figure {
@@ -695,7 +696,13 @@ fn dimension(
 }
 
 /// Compiles the body of a ```dim fence. `body` holds (line text, sheet line); `open` is the fence's line.
-pub fn compile(body: &[(String, usize)], open: usize, seq: usize, ctx: &Ctx) -> Figure {
+pub fn compile(
+    body: &[(String, usize)],
+    open: usize,
+    seq: usize,
+    ctx: &Ctx,
+    images: &HashMap<String, String>,
+) -> Figure {
     let mut errors = Vec::new();
     let mut image: Option<(String, f64, f64, Option<String>, String)> = None;
     let mut st = Style::for_picture(800.0, 400.0);
@@ -731,7 +738,17 @@ pub fn compile(body: &[(String, usize)], open: usize, seq: usize, ctx: &Ctx) -> 
                 errors.push((idx, "a second 'image' line (a figure has one picture)".into()));
                 continue;
             }
-            let file = ws.get(1).copied().unwrap_or("");
+            let mut file = ws.get(1).copied().unwrap_or("");
+            // `[name]`: a picture defined in the sheet by a `[name]: data:image/...` line.
+            if let Some(name) = file.strip_prefix('[').and_then(|f| f.strip_suffix(']')) {
+                match images.get(name) {
+                    Some(url) => file = url.as_str(),
+                    None => {
+                        errors.push((idx, format!("no picture is named '{name}' (a line '[{name}]: data:image/...' in the sheet)")));
+                        continue;
+                    }
+                }
+            }
             let size = ws.get(2).and_then(|s| s.split_once(['x', 'X', '×']));
             let size = size.and_then(|(a, b)| Some((a.parse::<f64>().ok()?, b.parse::<f64>().ok()?)));
             if file.is_empty() || file.contains(['"', '\'', '<', '>']) {
@@ -1024,7 +1041,9 @@ mod tests {
             cond: false,
         };
         let body: Vec<(String, usize)> = src.lines().enumerate().map(|(i, l)| (l.to_string(), i + 1)).collect();
-        compile(&body, 0, 1, &ctx)
+        let mut images = HashMap::new();
+        images.insert("pic".to_string(), "data:image/png;base64,AAAA".to_string());
+        compile(&body, 0, 1, &ctx, &images)
     }
 
     #[test]
@@ -1098,6 +1117,16 @@ mod tests {
         let f = run("image a.png 800x400\nstyle arrow star\nstyle decimals -1\nstyle size\nhdim 0,1 9,1 weight heavy");
         let lines: Vec<usize> = f.errors.iter().map(|e| e.0).collect();
         assert_eq!(lines, vec![2, 3, 4, 5], "{:?}", f.errors);
+    }
+
+
+    #[test]
+    fn a_picture_can_be_named() {
+        let f = run("image [pic] 10x10\ndim 0,0 9,9");
+        assert!(f.errors.is_empty(), "{:?}", f.errors);
+        assert!(f.lines[1].0.contains("src=\"data:image/png;base64,AAAA\""), "{:?}", f.lines[1]);
+        let f = run("image [nope] 10x10");
+        assert!(f.errors[0].1.contains("no picture is named 'nope'"), "{:?}", f.errors);
     }
 
 }

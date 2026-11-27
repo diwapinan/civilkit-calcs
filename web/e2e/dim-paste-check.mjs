@@ -34,13 +34,18 @@ await page.waitForFunction(() => window.calcpadActiveEditor.getValue().includes(
 const lines = (await page.evaluate(() => window.calcpadActiveEditor.getValue())).split('\n');
 check(lines[1] === 'L: 6 m' && lines[2] === '', `the fence goes after the cursor's line, with a blank line (${JSON.stringify(lines.slice(1, 4).map(l => l.slice(0, 20)))})`);
 check(lines[3] === '```dim', 'the fence opens with ```dim');
-check(/^image data:image\/png;base64,\S+ 1600x800 width 640$/.test(lines[4] ?? ''), `the picture is scaled to 1600 x 800 and its size written (${(lines[4] ?? '').replace(/base64,\S+/, 'base64,…')})`);
+check(lines[4] === 'image [img1] 1600x800 width 640', `the fence names the picture, scaled to 1600 x 800, with its size (${lines[4]})`);
+check(/^\[img1\]: data:image\/png;base64,\S+$/.test(lines.at(-1) ?? '') && lines.at(-2) === '', 'the picture\'s data goes at the end of the sheet, after a blank line');
+await page.waitForTimeout(400);
+const shownText = await page.evaluate(() => (document.querySelector('.monaco-editor .view-lines')?.textContent ?? '').replace(/\u00a0/g, ' '));
+check(!shownText.includes('base64') && shownText.includes('image [img1]'), 'the editor hides the data line');
 check(lines.some(l => l.startsWith('// hdim 160,680 1440,680 offset -80 | {L}')), 'a starter horizontal dimension in the picture\'s pixels');
-check(lines[lines.indexOf('```dim') + 7] === '```' && lines.at(-1) === 'h: 450 mm', 'the fence is closed and the rest of the sheet follows');
+check(lines[lines.indexOf('```dim') + 7] === '```' && lines[lines.indexOf('```dim') + 9] === 'h: 450 mm', 'the fence is closed and the rest of the sheet follows');
 const pos = await page.evaluate(() => window.calcpadActiveEditor.getPosition().lineNumber);
 check(lines[pos - 1]?.startsWith('// hdim'), `the cursor lands on the first starter line (line ${pos})`);
 await page.evaluate(() => window.calcpadActiveEditor.trigger('t', 'undo', null));
-check(!(await page.evaluate(() => window.calcpadActiveEditor.getValue())).includes('```dim'), 'one undo takes the picture away');
+const undone = await page.evaluate(() => window.calcpadActiveEditor.getValue());
+check(!undone.includes('```dim') && !undone.includes('[img1]'), 'one undo takes the fence and the data away');
 
 await paste(true);
 await page.waitForTimeout(800);
@@ -58,7 +63,17 @@ const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.clic
 await chooser.setFiles({ name: 'beam.png', mimeType: 'image/png', buffer: Buffer.from(png) });
 await page.waitForFunction(() => window.calcpadActiveEditor.getValue().includes('```dim'), null, { timeout: 10000 }).catch(() => {});
 const after = (await page.evaluate(() => window.calcpadActiveEditor.getValue())).split('\n');
-check(after[3] === '```dim' && / 300x200 width 300$/.test(after[4] ?? ''), `the ribbon button inserts the picture as a dim fence (${(after[4] ?? '').replace(/base64,\S+/, 'base64,…')})`);
+check(after[3] === '```dim' && after[4] === 'image [img1] 300x200 width 300', `the ribbon button inserts the picture as a dim fence (${after[4]})`);
+// A second picture takes the next name; deleting a fence shows its data line again, to be deleted.
+await page.evaluate(() => window.calcpadActiveEditor.setPosition({ lineNumber: 2, column: 1 }));
+const [chooser2] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-ribbon-btn="pl-dimfig"]')]);
+await chooser2.setFiles({ name: 'b.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+await page.waitForFunction(() => window.calcpadActiveEditor.getValue().includes('[img2]:'), null, { timeout: 10000 }).catch(() => {});
+check((await page.evaluate(() => window.calcpadActiveEditor.getValue())).includes('image [img2] 300x200'), 'a second picture is img2');
+await page.evaluate(() => { const ed = window.calcpadActiveEditor; ed.setValue(ed.getValue().replace(/```dim\nimage \[img2\][\s\S]*?```\n/, '')); });
+await page.waitForTimeout(500);
+const shown2 = await page.evaluate(() => (document.querySelector('.monaco-editor .view-lines')?.textContent ?? '').replace(/\u00a0/g, ' '));
+check(shown2.includes('[img2]: data:') && !shown2.includes('[img1]: data:'), 'an unused picture\'s data shows; a used one stays hidden');
 await page.click('[data-ribbon-tab="math"]');
 check(await page.locator('[data-ribbon-btn="r-dimfig"]').count() === 1, 'the Math tab has the button too');
 

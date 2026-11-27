@@ -105,7 +105,8 @@ hdim 60,250 {60 + L/(1 m)*80},250 offset 120 | 0.8 L = {0.8*L -> m}
 ````
 
 * **`image FILE WIDTHxHEIGHT [width CSS] [alt TEXT]`** comes first. `FILE` is a library file (as for
-  `![alt](file)`) or a `data:` URL, and `WIDTHxHEIGHT` is the picture's size in pixels: every point
+  `![alt](file)`), a `data:` URL, or `[name]`: a picture the sheet defines on a line of its own,
+  `[name]: data:image/...` (a Markdown reference definition, anywhere in the sheet; it writes nothing), and `WIDTHxHEIGHT` is the picture's size in pixels: every point
   of the figure is a pixel of the picture, x to the right and y down from the top left corner.
   `width` is the width on the page (`600` is 600 px; `80%` also works); it defaults to the picture's own.
 * **`dim P1 P2 [offset d]`** is an aligned dimension from `P1` to `P2`, drawn `d` pixels to the left of
@@ -146,7 +147,9 @@ hdim 60,250 {60 + L/(1 m)*80},250 offset 120 | 0.8 L = {0.8*L -> m}
   be a number, so divide a quantity by its unit (`L/(1 m)`) or write `{L -> m}` (the number of metres).
 
 **Paste a picture** (a screenshot of a drawing, say) into a sheet with Ctrl+V and the editor writes the fence
-for it: the picture as a `data:` URL with its size, scaled down to 1600 pixels on its longer side, and
+for it: `image [img1] WIDTHxHEIGHT` with the picture's size, scaled down to 1600 pixels on its longer side, the
+picture's data as `[img1]: data:image/...` at the end of the sheet (a line the editor hides while a fence uses it, and
+shows again when none does, so it can be deleted), and
 commented starter lines (`// style`, `// hdim`, `// vdim`, `// text`) in the picture's own pixels. Remove `//` from a
 line and edit its points and label. In a Calcpad worksheet a pasted picture is an image line. A clipboard that
 also holds text (a spreadsheet range) pastes the text. The ribbon's **Dimension figure** button (Math tab, and Plots & Diagrams > Figures) does the same with a picture

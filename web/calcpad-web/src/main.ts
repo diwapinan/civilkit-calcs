@@ -57,7 +57,7 @@ import { attachQuickTyper } from './editor/quick-type';
 import { attachOperatorReplacer } from './editor/operator-replacer';
 import { attachAutoIndenter } from './editor/auto-indent';
 import { attachToFormula } from './editor/to-formula-monaco';
-import { attachPicturePaste, insertPicture, readPicture } from './editor/paste-dim';
+import { attachPictureHiding, attachPicturePaste, insertPicture, readPicture } from './editor/paste-dim';
 import { dimFence, drawEdit, pickEdit } from './editor/dim-edit';
 import { registerFormattingCommands, getParseMode } from './editor/formatting-commands';
 import { looksLikeLine, sheetInsert } from './wasm/sheet-insert';
@@ -1092,7 +1092,7 @@ async function bootstrap(): Promise<void> {
         attachToFormula(ed);
         attachAutoIndenter(ed);
         attachProseToolbar(ed);
-        group.disposables.push(attachPicturePaste(ed));
+        group.disposables.push(attachPicturePaste(ed), attachPictureHiding(ed));
         registerFormattingCommands(ed, editorBridge);
         // Ctrl/Cmd+Shift+K deletes the sheet block that holds the caret (Monaco's own binding deletes the line, which stays for other files);
         // Ctrl/Cmd+Shift+/ disables it or, on a disabled block, enables it again.

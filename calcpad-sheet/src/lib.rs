@@ -15,7 +15,7 @@ mod unitdef;
 
 pub use format::format;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// The first line of a sheet that is not a `.sheet` file.
 pub const MARKER: &str = "<!--sheet-->";
@@ -219,6 +219,8 @@ struct Stmt {
 struct Comp<'a> {
     opts: &'a Options,
     defined: &'a HashSet<String>,
+    /// The pictures the sheet defines (`[name]: data:image/...` lines), for ```dim fences.
+    images: HashMap<String, String>,
     found: HashSet<String>,
     defs: Vec<Def>,
     out: Vec<String>,
@@ -274,6 +276,7 @@ impl<'a> Comp<'a> {
         Comp {
             opts,
             defined,
+            images: HashMap::new(),
             found: HashSet::new(),
             defs: Vec::new(),
             out: Vec::new(),
@@ -537,6 +540,8 @@ impl<'a> Comp<'a> {
 
     fn run(&mut self, lines: &[&str]) {
         self.kinds = vec![LineKind::Blank; lines.len()];
+        // A figure may use a picture defined further down (the editor puts them at the end of the sheet).
+        self.images = lines.iter().filter_map(|l| image_def(l)).map(|(n, u)| (n.to_string(), u.to_string())).collect();
         let mut fence: Option<Fence> = None;
         let mut math: Option<(Vec<String>, usize)> = None;
         let mut marker_seen = false;
@@ -740,6 +745,11 @@ impl<'a> Comp<'a> {
             if self.unit_def(&content, idx) {
                 continue;
             }
+            if indent == 0 && image_def(&content).is_some() {
+                // A picture for a dim fence: data, not text, so it writes nothing.
+                self.mark(idx, LineKind::Raw);
+                continue;
+            }
             if content.starts_with("'<!--{") && content.ends_with("-->") {
                 // A metadata comment (the values saved from the input form): the engine's own comment, as written.
                 self.flush_prose();
@@ -828,7 +838,7 @@ impl<'a> Comp<'a> {
     /// A ```dim fence: the picture with its dimension lines, values filled in by the engine.
     fn dim_figure(&mut self, body: &[(String, usize)], open: usize) {
         self.seq += 1;
-        let fig = dim::compile(body, open, self.seq, &self.ctx(false));
+        let fig = dim::compile(body, open, self.seq, &self.ctx(false), &self.images);
         for (line, m) in fig.errors {
             self.diag(line, Severity::Error, m);
         }
@@ -1685,6 +1695,17 @@ pub(crate) fn split_collapse(text: &str) -> Option<(&str, bool)> {
         }
     }
     None
+}
+
+/// A picture definition, `[name]: data:image/...;base64,...` (a Markdown reference definition whose target is
+/// a picture's data): the name and the data URL. A ```dim fence uses it as `image [name] WxH`.
+pub fn image_def(line: &str) -> Option<(&str, &str)> {
+    let rest = line.strip_prefix('[')?;
+    let (name, rest) = rest.split_once("]:")?;
+    let url = rest.trim();
+    let ok_name = !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+    let ok_url = url.starts_with("data:image/") && !url.contains(char::is_whitespace) && !url.contains(['"', '\'', '<', '>']);
+    (ok_name && ok_url).then_some((name, url))
 }
 
 fn heading(line: &str) -> Option<(usize, &str)> {

@@ -1864,3 +1864,20 @@ fn dim_figure_errors_point_at_their_lines() {
     let at: Vec<usize> = c.diagnostics.iter().map(|d| d.line).collect();
     assert_eq!(at, vec![2, 3], "{:?}", c.diagnostics);
 }
+
+#[test]
+fn dim_figure_takes_a_named_picture_from_the_end_of_the_sheet() {
+    let src = "<!--sheet-->\nL: 6 m\n\n```dim\nimage [img1] 800x400\nhdim 0,300 800,300 | {L}\n```\n\nM: L * 2\n\n[img1]: data:image/png;base64,iVBORw0KGgo=\n";
+    let (c, html, errs) = render(src);
+    no_errors("named picture", &errs, &c);
+    assert!(html.contains("<img src=\"data:image/png;base64,iVBORw0KGgo=\""), "{html}");
+    // The definition writes nothing of its own: the data is in the picture only.
+    assert_eq!(c.text.matches("iVBORw0KGgo=").count(), 1, "{}", c.text);
+    assert_eq!(c.kinds[10], LineKind::Raw);
+    assert!(text(&html).contains("L = 6 m"));
+    // A name that is not defined is an error on the image line.
+    let c = compile("<!--sheet-->\n```dim\nimage [img9] 800x400\n```\n");
+    assert_eq!(c.diagnostics.iter().map(|d| d.line).collect::<Vec<_>>(), vec![2], "{:?}", c.diagnostics);
+    // Format Document leaves the definition as it is.
+    assert!(format(src).contains("\n[img1]: data:image/png;base64,iVBORw0KGgo=\n"));
+}
