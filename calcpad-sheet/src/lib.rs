@@ -4,6 +4,7 @@
 //! sheet line), so that the one engine, calcpad-core, runs both. Deterministic, no I/O.
 //! The grammar is documented in docs/sheet-syntax.md.
 
+mod dim;
 pub mod expr;
 mod format;
 pub mod input;
@@ -189,6 +190,8 @@ enum Fence {
     /// (indent to strip, export-name scan, opened by a bare `#python` line instead of a fence)
     Python(usize, pyexport::ExportScan, bool),
     Code(usize),
+    /// A ```dim fence: a picture with dimension lines (dim.rs). (body lines, the fence's line)
+    Dim(Vec<(String, usize)>, usize),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -573,6 +576,16 @@ impl<'a> Comp<'a> {
                             self.emit(s, idx);
                         }
                     }
+                    Fence::Dim(body, open) => {
+                        self.mark(idx, LineKind::Raw);
+                        if closes {
+                            let (body, open) = (std::mem::take(body), *open);
+                            fence = None;
+                            self.dim_figure(&body, open);
+                        } else {
+                            body.push((line.to_string(), idx));
+                        }
+                    }
                     Fence::Code(strip) => {
                         let (w, _, n) = leading(line);
                         let extra = w.saturating_sub(*strip);
@@ -696,6 +709,10 @@ impl<'a> Comp<'a> {
                 if info.eq_ignore_ascii_case("calcpad") {
                     self.flush_prose();
                     fence = Some(Fence::Calcpad);
+                } else if info.eq_ignore_ascii_case("dim") || info.eq_ignore_ascii_case("dimension") {
+                    self.flush_prose();
+                    self.mark(idx, LineKind::Raw);
+                    fence = Some(Fence::Dim(Vec::new(), idx));
                 } else if info.eq_ignore_ascii_case("python") {
                     self.flush_prose();
                     self.mark(idx, LineKind::Raw);
@@ -784,6 +801,10 @@ impl<'a> Comp<'a> {
             self.diag(last, Severity::Error, msg);
             self.emit("#end python", last);
         }
+        if let Some(Fence::Dim(body, open)) = fence.take() {
+            self.diag(open, Severity::Error, "the dim fence is never closed with ```");
+            self.dim_figure(&body, open);
+        }
         if math.is_some() {
             let (buf, start) = math.take().unwrap();
             self.diag(
@@ -801,6 +822,18 @@ impl<'a> Comp<'a> {
         let last = lines.len().saturating_sub(1);
         while self.collapses.pop().is_some() {
             self.emit("'</details>", last);
+        }
+    }
+
+    /// A ```dim fence: the picture with its dimension lines, values filled in by the engine.
+    fn dim_figure(&mut self, body: &[(String, usize)], open: usize) {
+        self.seq += 1;
+        let fig = dim::compile(body, open, self.seq, &self.ctx(false));
+        for (line, m) in fig.errors {
+            self.diag(line, Severity::Error, m);
+        }
+        for (l, i) in fig.lines {
+            self.emit(l, i);
         }
     }
 

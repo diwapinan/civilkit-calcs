@@ -83,6 +83,53 @@ next to the calculation it describes (state, sequence, Gantt, pie, treemap, quad
 mind map, requirement, timeline and class diagrams as well as flow charts); `web/e2e/diagram-samples-check.mjs`
 opens each one in the app and checks that it draws.
 
+### Dimension figures
+
+A fenced code block tagged `dim` (or `dimension`) draws dimension lines and labels over a picture, and
+fills the labels in from the sheet's quantities. The figure stands where the fence stands, so it shows
+the values as they are at that point, and it follows every recalculation.
+
+````
+L: 6 m | span
+h: 450 mm | depth
+w: 12 kN/m
+
+```dim
+image beam.png 800x400 width 640 alt Beam elevation
+hdim 60,330 740,330 offset -50 | {L}
+vdim 740,250 740,330 offset -40 | h = {h -> mm}
+text 360,180 | w = {w -> kN/m}
+color #1565c0
+hdim 60,250 {60 + L/(1 m)*80},250 offset 120 | 0.8 L = {0.8*L -> m}
+```
+````
+
+* **`image FILE WIDTHxHEIGHT [width CSS] [alt TEXT]`** comes first. `FILE` is a library file (as for
+  `![alt](file)`) or a `data:` URL, and `WIDTHxHEIGHT` is the picture's size in pixels: every point
+  of the figure is a pixel of the picture, x to the right and y down from the top left corner.
+  `width` is the width on the page (`600` is 600 px; `80%` also works); it defaults to the picture's own.
+* **`dim P1 P2 [offset d]`** is an aligned dimension from `P1` to `P2`, drawn `d` pixels to the left of
+  the direction `P1` → `P2` (above, for a line drawn left to right). **`hdim`** measures horizontally,
+  with the line `d` pixels above `P1` (a negative offset is below), and **`vdim`** vertically, with the
+  line `d` pixels left of `P1`. Extension lines are drawn when the offset is not 0.
+* **`line P1 P2 [P3 ...]`** draws a line through the points; **`text P | label`** places a label.
+* **`color C`** alone sets the colour of the lines after it; `color C` after the points sets it for one
+  line, and `size N` the label's text size in px. `//` starts a comment line.
+* A point is `x,y` with no space. A coordinate is a number or a value in braces.
+* **The label** follows `|`. Text is shown as written, and a value in braces is filled in:
+  `{L}` (a name alone) is the engine's `L = 6 m`; `{h -> mm}` is the number in that unit with the
+  unit after it, `450 mm`; `{expr}` with no unit is the number alone.
+* **Values in the geometry:** a coordinate in braces is worked out by the engine, so the drawing can
+  follow the calculation: `{60 + L/(1 m)*80}` moves the end of a dimension with `L`. A coordinate must
+  be a number, so divide a quantity by its unit (`L/(1 m)`) or write `{L -> m}` (the number of metres).
+
+The compiler writes the figure as Calcpad text lines holding HTML: the picture, an SVG layer in the
+picture's pixel coordinates, and the labels as HTML over it, with `#val ... #end val` and
+`#equ ... #end equ` around the values, so the output mode around the fence is kept. The report needs no
+script, and HTML and PDF carry the figure as drawn. The Word export has the picture and the dimension
+lines, with the labels as text after them. A line the compiler cannot read is an error on its line,
+and the rest of the figure is still drawn. This is our addition and not part of CalcpadCE.
+
 ## Quantity lines
 
 ```

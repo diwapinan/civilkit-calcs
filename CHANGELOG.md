@@ -11,6 +11,9 @@ under "Crates" at the end, on plain 0.x semver, and are tagged `<crate-name>-v<v
 
 ## [Unreleased]
 
+### Added
+- **Dimension figures** - A ```` ```dim ```` fence in a sheet draws dimension lines (aligned, horizontal and vertical), lines and labels over a picture, with the labels filled in from the sheet's quantities (`{L}`, `{h -> mm}`) and, if wanted, the geometry too (`{60 + L/(1 m)*80}`), so the figure follows every recalculation. See "Dimension figures" in docs/sheet-syntax.md.
+
 ## [26.11.4] - 2026-11-16
 
 ### Added

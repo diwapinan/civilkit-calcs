@@ -1831,3 +1831,36 @@ fn solve_integral_and_slope_lines() {
     assert!(c.diagnostics.is_empty());
     assert!(c.text.starts_with("'Note: solve"), "{}", c.text);
 }
+
+#[test]
+fn dim_figure_takes_its_values_from_the_sheet() {
+    let src = "<!--sheet-->\nL: 6 m\nh: 450 mm\nw: 12 kN/m\n\n```dim\nimage beam.png 800x400 width 600\ndim 60,330 740,330 offset 40 | {L}\nvdim 740,330 740,90 offset -40 | h = {h -> mm}\nhdim 60,330 {60 + L/(1 m)*100},330 offset -30 color blue | {L -> m}\ntext 400,200 | w = {w -> kN/m}\n```\n\nM: w * L^2 / 8 -> kN*m\n";
+    let (c, html, errs) = render(src);
+    no_errors("dim", &errs, &c);
+    // The picture and the layer over it.
+    assert!(html.contains("<img src=\"beam.png\""), "{html}");
+    assert!(html.contains("viewBox=\"0 0 800 400\""), "{html}");
+    // A name alone is the engine's equation; a value with a unit is the number and the unit.
+    let t = text(&html);
+    assert!(t.contains("L = 6 m"), "{t}");
+    assert!(t.contains("h = 450 mm 6 m"), "{t}");
+    assert!(t.contains("w = 12 kN/m"), "{t}");
+    // The geometry from a value: 60 + 6 * 100 = 660.
+    assert!(html.contains("x2=\"660\""), "{html}");
+    // The label of the horizontal dimension sits at the middle of 60 and 660 = 360 of 800 = 45 %.
+    assert!(html.contains("left:45%"), "{html}");
+    // The modes are restored: the line after the figure is an equation with its working.
+    assert!(
+        t.contains("M = w · L 2 8 = 12 kN m · 6 m 2 8 = 54 kN · m") || t.contains("= 54 kN · m"),
+        "{t}"
+    );
+    assert!(html.contains("<var>M</var> = "), "{html}");
+}
+
+#[test]
+fn dim_figure_errors_point_at_their_lines() {
+    let src = "<!--sheet-->\n```dim\nimage beam.png\ndim 1,1 | {L}\n```\n";
+    let c = compile(src);
+    let at: Vec<usize> = c.diagnostics.iter().map(|d| d.line).collect();
+    assert_eq!(at, vec![2, 3], "{:?}", c.diagnostics);
+}
